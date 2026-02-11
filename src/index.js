@@ -1,34 +1,30 @@
-const express=require('express')
-const mongoose=require('mongoose')
-const route = require('./Routes/route')
+const express = require("express");
+const mongoose = require("mongoose");
 const cors = require("cors");
+const dotenv = require("dotenv");
+dotenv.config();
 
-const app=express()
+const app = express();
+
+const route = require("./Routes/route");
+
 app.use(cors({
-  origin: "http://localhost:3000",
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: ["http://localhost:3000", "http://localhost:3001"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use(express.json());
 
+// ✅ IMPORTANT: mount all your routes under /api
+app.use("/api", route);
 
+mongoose.set("strictQuery", false);
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDb connected"))
+  .catch((err) => console.log(err));
 
-const dotenv = require("dotenv");
-dotenv.config();
-app.use(express.json())
-
-mongoose.set('strictQuery',false)
-mongoose.connect('mongodb+srv://group21Database:f8HsIED1oiOyc6yi@karthikcluster.b2ikjot.mongodb.net/dating-impatient'
-    
-).then(()=>console.log('MongoDb connected'))
-.catch((err)=>console.log(err))
-
-app.use('/',route)
-
-
-app.listen(process.env.PORT || 5000,function(){
-    console.log(`connected to port ${process.env.PORT || 5000}`)
-})
-
-
+app.listen(process.env.PORT || 5000, function () {
+  console.log(`connected to port ${process.env.PORT || 5000}`);
+});
