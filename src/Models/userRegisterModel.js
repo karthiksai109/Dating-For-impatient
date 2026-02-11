@@ -17,6 +17,11 @@ const userSchema = new mongoose.Schema(
         trim: true 
     },
 
+    phone: {
+        type: String,
+        default: ""
+    },
+
     password: { 
         type: String, 
         required: true 
@@ -30,20 +35,35 @@ const userSchema = new mongoose.Schema(
     age: { 
         type: Number, 
         default: null 
-    }, // optional; you can compute from DOB
+    },
+
+    gender: {
+        type: String,
+        enum: ["male", "female", "non-binary", "other", ""],
+        default: ""
+    },
+
+    interestedIn: {
+        type: String,
+        enum: ["male", "female", "everyone", ""],
+        default: "everyone"
+    },
 
     hobbies: { 
         type: [String], 
-        required:true
+        required: true
+    },
+
+    interests: {
+        type: [String],
+        default: []
     },
 
     bio: { 
         type: String,
-         maxlength: 500, 
-         required:true
-        },
-
-    
+        maxlength: 500, 
+        required: true
+    },
 
     // 6 photos
     photos: {
@@ -51,6 +71,13 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
 
+    // Privacy: these are NEVER exposed to other users
+    privacySettings: {
+      showEmail: { type: Boolean, default: false },
+      showPhone: { type: Boolean, default: false },
+      showAge: { type: Boolean, default: true },
+      showBio: { type: Boolean, default: true },
+    },
 
     // Real-time state only (PRD: don't store historical location)
     isregistered: { 
@@ -76,8 +103,19 @@ const userSchema = new mongoose.Schema(
         enum: ["user", "admin"], 
         default: "user"
     },
+
+    // Swipe tracking
+    swipedRight: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    swipedLeft: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // Block list
+    blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
+
+userSchema.index({ activeVenueId: 1, status: 1 });
+userSchema.index({ hobbies: 1 });
+userSchema.index({ interests: 1 });
 
 module.exports = mongoose.model("User", userSchema);
