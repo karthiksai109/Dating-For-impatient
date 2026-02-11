@@ -9,7 +9,7 @@ export default function Matches() {
   const [tab, setTab] = useState("venue");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { user, venue } = useAuth();
+  const { venue } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
