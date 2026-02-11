@@ -156,7 +156,20 @@ const getNearbyVenues = async function (req, res) {
         .limit(50);
     }
 
-    return res.status(200).send({ status: true, message: "venues", data: venues });
+    // Add distance if user provided coordinates
+    let result = venues.map(v => {
+      let obj = v.toObject();
+      if (lat && lng && v.location && v.location.coordinates) {
+        const R = 6371000;
+        const dLat = (v.location.coordinates[1] - parseFloat(lat)) * Math.PI / 180;
+        const dLng = (v.location.coordinates[0] - parseFloat(lng)) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(parseFloat(lat)*Math.PI/180)*Math.cos(v.location.coordinates[1]*Math.PI/180)*Math.sin(dLng/2)**2;
+        obj.distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+      }
+      return obj;
+    });
+
+    return res.status(200).send({ status: true, message: "venues", data: result });
   } catch (err) {
     return res.status(500).send({ status: false, message: err.message });
   }
@@ -173,4 +186,113 @@ const getVenuePeopleCount = async function (req, res) {
   }
 };
 
-module.exports = { checkIn, checkOut, heartbeat, getNearbyVenues, getVenuePeopleCount };
+// AUTO-DETECT VENUE BY USER LOCATION
+const autoDetectVenue = async function (req, res) {
+  try {
+    let userId = req.user.userId;
+    let { lat, lng } = req.body;
+
+    if (!lat || !lng) return res.status(400).send({ status: false, message: "lat and lng required" });
+
+    lat = parseFloat(lat);
+    lng = parseFloat(lng);
+
+    // Try geo query first
+    let nearestVenue = null;
+    try {
+      nearestVenue = await Venue.findOne({
+        isActive: true,
+        isDeleted: false,
+        location: {
+          $near: {
+            $geometry: { type: "Point", coordinates: [lng, lat] },
+            $maxDistance: 500
+          }
+        }
+      });
+    } catch (geoErr) {
+      // Fallback: get all venues and calculate distance manually
+      let allVenues = await Venue.find({ isActive: true, isDeleted: false });
+      let closest = null;
+      let closestDist = Infinity;
+      for (let v of allVenues) {
+        if (v.location && v.location.coordinates && v.location.coordinates[0] !== 0) {
+          let d = haversine(lat, lng, v.location.coordinates[1], v.location.coordinates[0]);
+          if (d < closestDist && d <= (v.radiusMeters || 500)) {
+            closestDist = d;
+            closest = v;
+          }
+        }
+      }
+      nearestVenue = closest;
+    }
+
+    if (!nearestVenue) {
+      // No venue nearby - just return all venues sorted by distance
+      let allVenues = await Venue.find({ isActive: true, isDeleted: false });
+      let sorted = allVenues.map(v => {
+        let dist = 999999;
+        if (v.location && v.location.coordinates && v.location.coordinates[0] !== 0) {
+          dist = haversine(lat, lng, v.location.coordinates[1], v.location.coordinates[0]);
+        }
+        return { ...v.toObject(), distance: Math.round(dist) };
+      }).sort((a, b) => a.distance - b.distance);
+
+      return res.status(200).send({
+        status: true,
+        message: "no venue at your location, showing nearby",
+        data: { atVenue: false, venues: sorted.slice(0, 20) }
+      });
+    }
+
+    // Auto check-in to the detected venue
+    let user = await User.findByIdAndUpdate(
+      userId,
+      { activeVenueId: nearestVenue._id, lastActiveAt: new Date() },
+      { new: true }
+    ).select("-password -swipedRight -swipedLeft -blockedUsers");
+
+    await VenuePresence.findOneAndUpdate(
+      { userId },
+      {
+        userId,
+        venueId: nearestVenue._id,
+        lastSeenAt: new Date(),
+        expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000)
+      },
+      { upsert: true, new: true }
+    );
+
+    let occupancy = await VenuePresence.countDocuments({ venueId: nearestVenue._id });
+    await Venue.findByIdAndUpdate(nearestVenue._id, { currentOccupancy: occupancy });
+
+    return res.status(200).send({
+      status: true,
+      message: `auto checked in to ${nearestVenue.name}`,
+      data: {
+        atVenue: true,
+        venue: {
+          _id: nearestVenue._id,
+          name: nearestVenue.name,
+          type: nearestVenue.type,
+          city: nearestVenue.city,
+          currentOccupancy: occupancy
+        }
+      }
+    });
+  } catch (err) {
+    return res.status(500).send({ status: false, message: err.message });
+  }
+};
+
+// Haversine distance in meters
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+module.exports = { checkIn, checkOut, heartbeat, getNearbyVenues, getVenuePeopleCount, autoDetectVenue };

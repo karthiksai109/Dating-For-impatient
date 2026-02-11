@@ -4,188 +4,126 @@ import api from "../api";
 
 export default function Chats() {
   const [chatList, setChatList] = useState([]);
-  const [activeChat, setActiveChat] = useState(null);
+  const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [newMsg, setNewMsg] = useState("");
+  const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const { user } = useAuth();
-  const messagesEndRef = useRef(null);
+  const endRef = useRef(null);
   const pollRef = useRef(null);
 
   useEffect(() => {
-    fetchChatList();
+    api.get("/chats").then(r => { if (r.data.status) setChatList(r.data.data); })
+      .catch(() => {}).finally(() => setLoading(false));
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
   useEffect(() => {
-    if (activeChat) {
-      fetchMessages(activeChat.matchId);
-      pollRef.current = setInterval(() => fetchMessages(activeChat.matchId), 3000);
-      return () => clearInterval(pollRef.current);
-    }
-  }, [activeChat]);
+    if (!active) return;
+    const load = () => api.get(`/messages/${active.matchId}`).then(r => { if (r.data.status) setMessages(r.data.data); }).catch(e => {
+      if (e.response?.status === 400) setError("Must be at venue to chat");
+    });
+    load();
+    pollRef.current = setInterval(load, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [active]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const fetchChatList = async () => {
-    try {
-      const res = await api.get("/chats");
-      if (res.data.status) setChatList(res.data.data);
-    } catch (err) {
-      setError("Failed to load chats");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMessages = async (matchId) => {
-    try {
-      const res = await api.get(`/messages/${matchId}`);
-      if (res.data.status) setMessages(res.data.data);
-    } catch (err) {
-      if (err.response?.status === 400) {
-        setError(err.response?.data?.message || "You must be at the venue to view messages");
-      }
-    }
-  };
-
-  const sendMessage = async (e) => {
+  const send = async (e) => {
     e.preventDefault();
-    if (!newMsg.trim() || !activeChat || sending) return;
-    setSending(true);
-    setError("");
+    if (!text.trim() || !active || sending) return;
+    setSending(true); setError("");
     try {
-      const res = await api.post("/messages", { matchId: activeChat.matchId, text: newMsg.trim() });
-      if (res.data.status) {
-        setMessages(prev => [...prev, res.data.data]);
-        setNewMsg("");
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to send message");
-    } finally {
-      setSending(false);
-    }
+      const r = await api.post("/messages", { matchId: active.matchId, text: text.trim() });
+      if (r.data.status) { setMessages(p => [...p, r.data.data]); setText(""); }
+    } catch (err) { setError(err.response?.data?.message || "Send failed"); }
+    finally { setSending(false); }
   };
 
-  if (loading) return <div className="page-loading"><div className="spinner"></div></div>;
+  if (loading) return <div className="page-loader"><div className="loader-ring"></div></div>;
+
+  if (active) {
+    return (
+      <div className="chat-room">
+        <div className="cr-header">
+          <button className="cr-back" onClick={() => { setActive(null); setMessages([]); setError(""); }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div className="cr-user">
+            <div className="cr-av">{active.otherUser?.photos?.[0] ? <img src={active.otherUser.photos[0]} alt={active.otherUser.name} /> : (active.otherUser?.name?.[0] || "?")}</div>
+            <div>
+              <h3>{active.otherUser?.name}</h3>
+              <p>{active.venue?.name || "Venue"}</p>
+            </div>
+          </div>
+        </div>
+
+        {error && <div className="toast-error">{error}</div>}
+
+        <div className="cr-messages">
+          <div className="venue-notice">Messages disappear when you leave this venue</div>
+          {messages.map((m, i) => {
+            const mine = (m.from?._id || m.from) === user._id;
+            return (
+              <div key={m._id || i} className={`bubble-row ${mine ? "mine" : "theirs"}`}>
+                <div className="bubble">
+                  <p>{m.text}</p>
+                  <span className="btime">{new Date(m.createdAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={endRef} />
+        </div>
+
+        <form className="cr-input" onSubmit={send}>
+          <input value={text} onChange={e => setText(e.target.value)} placeholder="Say something..." maxLength={500} />
+          <button type="submit" disabled={!text.trim() || sending}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
-    <div className="page chats-page">
-      {!activeChat ? (
-        <>
-          <div className="page-header">
-            <h1>💬 Chats</h1>
-            <p>Messages are venue-locked for privacy</p>
+    <div className="page">
+      <header className="page-top">
+        <div>
+          <h1 className="page-title">Messages</h1>
+          <p className="page-sub">Venue-locked for your privacy</p>
+        </div>
+      </header>
+
+      <div className="cl-list">
+        {chatList.length === 0 ? (
+          <div className="empty-box">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <h3>No conversations</h3>
+            <p>Match with someone to start chatting</p>
           </div>
-
-          {error && <div className="error-msg">{error}</div>}
-
-          <div className="chat-list">
-            {chatList.length === 0 ? (
-              <div className="empty-state">
-                <span className="empty-icon">💬</span>
-                <h3>No chats yet</h3>
-                <p>Match with someone at a venue to start chatting!</p>
-              </div>
+        ) : chatList.map(c => (
+          <div key={c.matchId} className={`cl-item ${c.canChat ? "" : "locked"}`} onClick={() => c.canChat && setActive(c)}>
+            <div className="cl-av">
+              {c.otherUser?.photos?.[0] ? <img src={c.otherUser.photos[0]} alt={c.otherUser.name} /> : (c.otherUser?.name?.[0] || "?")}
+              {c.canChat && <span className="pulse-dot"></span>}
+            </div>
+            <div className="cl-body">
+              <h3>{c.otherUser?.name || "Unknown"}</h3>
+              <p className="cl-venue">{c.venue?.name || ""}</p>
+              <p className="cl-preview">{c.lastMessage?.text || "No messages yet"}</p>
+            </div>
+            {c.canChat ? (
+              <span className="cl-status active">Active</span>
             ) : (
-              chatList.map(chat => (
-                <div
-                  key={chat.matchId}
-                  className={`chat-list-item ${chat.canChat ? "" : "disabled"}`}
-                  onClick={() => chat.canChat ? setActiveChat(chat) : null}
-                >
-                  <div className="chat-avatar">
-                    {chat.otherUser?.photos?.[0] ? (
-                      <img src={chat.otherUser.photos[0]} alt={chat.otherUser?.name} />
-                    ) : (
-                      <div className="avatar-placeholder">{chat.otherUser?.name?.[0] || "?"}</div>
-                    )}
-                    {chat.canChat && <span className="online-dot"></span>}
-                  </div>
-                  <div className="chat-preview">
-                    <h3>{chat.otherUser?.name || "Unknown"}</h3>
-                    <p className="chat-venue-label">
-                      {chat.venue?.name ? `📍 ${chat.venue.name}` : ""}
-                    </p>
-                    {chat.lastMessage ? (
-                      <p className="last-msg">{chat.lastMessage.text}</p>
-                    ) : (
-                      <p className="last-msg empty">No messages yet</p>
-                    )}
-                  </div>
-                  <div className="chat-status">
-                    {chat.canChat ? (
-                      <span className="chat-active-badge">Active</span>
-                    ) : (
-                      <span className="chat-locked-badge">🔒 Locked</span>
-                    )}
-                  </div>
-                </div>
-              ))
+              <span className="cl-status">Locked</span>
             )}
           </div>
-        </>
-      ) : (
-        <div className="chat-room">
-          <div className="chat-room-header">
-            <button className="back-btn" onClick={() => { setActiveChat(null); setMessages([]); setError(""); }}>
-              ← Back
-            </button>
-            <div className="chat-room-user">
-              <div className="chat-avatar small">
-                {activeChat.otherUser?.photos?.[0] ? (
-                  <img src={activeChat.otherUser.photos[0]} alt={activeChat.otherUser?.name} />
-                ) : (
-                  <div className="avatar-placeholder small">{activeChat.otherUser?.name?.[0] || "?"}</div>
-                )}
-              </div>
-              <div>
-                <h3>{activeChat.otherUser?.name}</h3>
-                <p className="chat-venue-small">📍 {activeChat.venue?.name || "Venue"}</p>
-              </div>
-            </div>
-          </div>
-
-          {error && <div className="error-msg">{error}</div>}
-
-          <div className="messages-container">
-            <div className="venue-lock-notice">
-              🔒 Messages are only visible while both of you are at this venue
-            </div>
-            {messages.map((msg, idx) => {
-              const isMe = (msg.from?._id || msg.from) === user._id;
-              return (
-                <div key={msg._id || idx} className={`message ${isMe ? "sent" : "received"}`}>
-                  <div className="message-bubble">
-                    <p>{msg.text}</p>
-                    <span className="message-time">
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <form className="message-input-form" onSubmit={sendMessage}>
-            <input
-              type="text"
-              value={newMsg}
-              onChange={e => setNewMsg(e.target.value)}
-              placeholder="Type a message..."
-              maxLength={500}
-            />
-            <button type="submit" disabled={!newMsg.trim() || sending}>
-              {sending ? "..." : "Send"}
-            </button>
-          </form>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }

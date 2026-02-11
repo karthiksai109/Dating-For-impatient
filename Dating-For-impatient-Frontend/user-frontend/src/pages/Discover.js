@@ -5,7 +5,7 @@ import api from "../api";
 
 export default function Discover() {
   const [profiles, setProfiles] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [swiping, setSwiping] = useState(null);
   const [matchPopup, setMatchPopup] = useState(null);
@@ -13,181 +13,128 @@ export default function Discover() {
   const { user, venue } = useAuth();
   const navigate = useNavigate();
 
-  const fetchProfiles = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
       const res = await api.get("/discover");
-      if (res.data.status) {
-        setProfiles(res.data.data);
-        setCurrentIndex(0);
-      }
+      if (res.data.status) { setProfiles(res.data.data); setIdx(0); }
     } catch (err) {
-      if (err.response?.status === 400) {
-        setError(err.response?.data?.message || "Check in to a venue first");
-      } else {
-        setError("Failed to load profiles");
-      }
-    } finally {
-      setLoading(false);
-    }
+      setError(err.response?.data?.message || "Could not load profiles");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (!user?.activeVenueId) {
-      setError("Check in to a venue first to discover people");
-      setLoading(false);
-      return;
-    }
-    fetchProfiles();
-  }, [user?.activeVenueId, fetchProfiles]);
+    if (!user?.activeVenueId) { setError("Check in to a venue first"); setLoading(false); return; }
+    load();
+  }, [user?.activeVenueId, load]);
 
-  const handleSwipe = async (direction) => {
-    if (currentIndex >= profiles.length) return;
-    const target = profiles[currentIndex];
-    setSwiping(direction);
-
+  const swipe = async (dir) => {
+    if (idx >= profiles.length) return;
+    const target = profiles[idx];
+    setSwiping(dir);
     try {
-      if (direction === "right") {
+      if (dir === "right") {
         const res = await api.post("/swipe/right", { targetUserId: target._id });
-        if (res.data.data?.matched) {
-          setMatchPopup(res.data.data.matchedUser);
-        }
+        if (res.data.data?.matched) setMatchPopup(res.data.data.matchedUser);
       } else {
         await api.post("/swipe/left", { targetUserId: target._id });
       }
-    } catch (err) {
-      console.error("Swipe error:", err);
-    }
-
-    setTimeout(() => {
-      setSwiping(null);
-      setCurrentIndex(prev => prev + 1);
-    }, 300);
+    } catch (err) { /* silent */ }
+    setTimeout(() => { setSwiping(null); setIdx(p => p + 1); }, 350);
   };
 
-  const currentProfile = profiles[currentIndex];
+  const p = profiles[idx];
+  const remaining = Math.max(profiles.length - idx, 0);
 
-  if (loading) return <div className="page-loading"><div className="spinner"></div></div>;
+  if (loading) return <div className="page-loader"><div className="loader-ring"></div></div>;
 
   if (!user?.activeVenueId) {
     return (
-      <div className="page discover-page">
-        <div className="empty-state">
-          <span className="empty-icon">📍</span>
-          <h3>No Venue Selected</h3>
-          <p>Check in to a venue to start discovering people nearby</p>
-          <button className="btn-primary" onClick={() => navigate("/venues")}>Find Venues</button>
+      <div className="page center-page">
+        <div className="empty-box">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#c93545" strokeWidth="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <h3>No venue yet</h3>
+          <p>Check in to a venue to see who's around</p>
+          <button className="btn-main" onClick={() => navigate("/venues")}>Find a Venue</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page discover-page">
-      <div className="page-header">
-        <h1>🔥 Discover</h1>
-        {venue && <p className="venue-indicator">At: {typeof venue === "object" ? venue.name : "Your Venue"}</p>}
-      </div>
+    <div className="page">
+      <header className="page-top">
+        <div>
+          <h1 className="page-title">Discover</h1>
+          {venue && <p className="page-sub">at {typeof venue === "object" ? venue.name : "your venue"}</p>}
+        </div>
+        <span className="badge-count">{remaining} left</span>
+      </header>
 
-      {error && <div className="error-msg">{error}</div>}
+      {error && <div className="toast-error">{error}</div>}
 
-      {/* Match Popup */}
       {matchPopup && (
-        <div className="match-popup-overlay" onClick={() => setMatchPopup(null)}>
-          <div className="match-popup" onClick={e => e.stopPropagation()}>
-            <div className="match-animation">💕</div>
-            <h2>It's a Match!</h2>
-            <p>You and <strong>{matchPopup.name}</strong> liked each other</p>
-            <div className="match-popup-photo">
-              {matchPopup.photos?.[0] ? (
-                <img src={matchPopup.photos[0]} alt={matchPopup.name} />
-              ) : (
-                <div className="avatar-placeholder large">{matchPopup.name?.[0]}</div>
-              )}
+        <div className="overlay" onClick={() => setMatchPopup(null)}>
+          <div className="match-modal" onClick={e => e.stopPropagation()}>
+            <div className="match-hearts">
+              <svg width="48" height="48" viewBox="0 0 40 40" fill="none"><path d="M20 36C20 36 4 26 4 14C4 8 8 4 14 4C17.5 4 20 6.5 20 6.5C20 6.5 22.5 4 26 4C32 4 36 8 36 14C36 26 20 36 20 36Z" fill="#e8465a"/></svg>
             </div>
-            <div className="match-popup-actions">
-              <button className="btn-primary" onClick={() => { setMatchPopup(null); navigate("/chats"); }}>
-                Send a Message
-              </button>
-              <button className="btn-secondary" onClick={() => setMatchPopup(null)}>
-                Keep Swiping
-              </button>
+            <h2>It's a match!</h2>
+            <p>You and <strong>{matchPopup.name}</strong> liked each other</p>
+            {matchPopup.photos?.[0] ? <img className="match-avatar-img" src={matchPopup.photos[0]} alt={matchPopup.name} /> : <div className="match-avatar">{matchPopup.name?.[0]}</div>}
+            <div className="match-btns">
+              <button className="btn-main" onClick={() => { setMatchPopup(null); navigate("/chats"); }}>Send Message</button>
+              <button className="btn-ghost" onClick={() => setMatchPopup(null)}>Keep Swiping</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Profile Cards */}
-      <div className="swipe-container">
-        {currentIndex >= profiles.length ? (
-          <div className="empty-state">
-            <span className="empty-icon">👀</span>
-            <h3>No more profiles</h3>
-            <p>You've seen everyone at this venue. Check back later!</p>
-            <button className="btn-primary" onClick={() => { setLoading(true); fetchProfiles(); }}>Refresh</button>
+      <div className="card-stack">
+        {idx >= profiles.length ? (
+          <div className="empty-box">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            <h3>That's everyone</h3>
+            <p>You've seen all profiles at this venue</p>
+            <button className="btn-main" onClick={() => { setLoading(true); load(); }}>Refresh</button>
           </div>
-        ) : currentProfile ? (
-          <div className={`profile-card ${swiping === "left" ? "swipe-left-anim" : swiping === "right" ? "swipe-right-anim" : ""}`}>
-            <div className="profile-photo">
-              {currentProfile.photos?.[0] ? (
-                <img src={currentProfile.photos[0]} alt={currentProfile.name} />
-              ) : (
-                <div className="avatar-placeholder xlarge">{currentProfile.name?.[0]}</div>
-              )}
-              <div className="profile-overlay">
-                <h2>{currentProfile.name}{currentProfile.age ? `, ${currentProfile.age}` : ""}</h2>
-                {currentProfile.gender && <span className="gender-badge">{currentProfile.gender}</span>}
+        ) : p ? (
+          <div className={`swipe-card ${swiping === "left" ? "exit-left" : swiping === "right" ? "exit-right" : "enter"}`}>
+            <div className="sc-photo">
+              {p.photos?.[0] ? <img src={p.photos[0]} alt={p.name} /> : <div className="sc-avatar">{p.name?.[0]}</div>}
+              <div className="sc-gradient">
+                <h2>{p.name}{p.age ? `, ${p.age}` : ""}</h2>
+                {p.gender && <span className="sc-gender">{p.gender}</span>}
               </div>
             </div>
-
-            <div className="profile-details">
-              {currentProfile.bio && <p className="profile-bio">{currentProfile.bio}</p>}
-
-              {currentProfile.matchScore > 0 && (
-                <div className="match-score">
-                  <div className="match-score-bar">
-                    <div className="match-score-fill" style={{ width: `${currentProfile.matchScore}%` }}></div>
-                  </div>
-                  <span>{currentProfile.matchScore}% Match</span>
+            <div className="sc-body">
+              {p.bio && <p className="sc-bio">{p.bio}</p>}
+              {p.matchScore > 0 && (
+                <div className="compat">
+                  <div className="compat-bar"><div className="compat-fill" style={{width:`${p.matchScore}%`}}></div></div>
+                  <span className="compat-pct">{p.matchScore}% compatible</span>
                 </div>
               )}
-
-              {currentProfile.commonInterests?.length > 0 && (
-                <div className="common-interests">
-                  <h4>Common Interests</h4>
-                  <div className="interest-chips">
-                    {currentProfile.commonInterests.map((i, idx) => (
-                      <span key={idx} className="interest-chip common">{i}</span>
-                    ))}
-                  </div>
+              {p.commonInterests?.length > 0 && (
+                <div className="sc-tags">
+                  {p.commonInterests.map((c,i) => <span key={i} className="stag shared">{c}</span>)}
                 </div>
               )}
-
-              {currentProfile.hobbies?.length > 0 && (
-                <div className="profile-hobbies">
-                  <h4>Hobbies</h4>
-                  <div className="interest-chips">
-                    {currentProfile.hobbies.map((h, idx) => (
-                      <span key={idx} className="interest-chip">{h}</span>
-                    ))}
-                  </div>
+              {p.hobbies?.length > 0 && (
+                <div className="sc-tags">
+                  {p.hobbies.filter(h => !p.commonInterests?.includes(h.toLowerCase())).map((h,i) => <span key={i} className="stag">{h}</span>)}
                 </div>
               )}
             </div>
-
-            <div className="swipe-actions">
-              <button className="swipe-btn pass" onClick={() => handleSwipe("left")} title="Pass">
-                ✕
+            <div className="sc-actions">
+              <button className="action-btn pass" onClick={() => swipe("left")}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
-              <button className="swipe-btn like" onClick={() => handleSwipe("right")} title="Like">
-                ♥
+              <button className="action-btn like" onClick={() => swipe("right")}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
               </button>
             </div>
           </div>
         ) : null}
-
-        <div className="profiles-remaining">
-          {profiles.length - currentIndex} profiles remaining at this venue
-        </div>
       </div>
     </div>
   );

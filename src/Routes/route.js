@@ -26,7 +26,7 @@ const {
 } = require("../Controllers/messageController");
 
 const {
-  checkIn, checkOut, heartbeat, getNearbyVenues, getVenuePeopleCount
+  checkIn, checkOut, heartbeat, getNearbyVenues, getVenuePeopleCount, autoDetectVenue
 } = require("../Controllers/checkinController");
 
 const {
@@ -68,6 +68,7 @@ router.post("/venues/checkin", userAuth, checkIn);
 router.post("/venues/checkout", userAuth, checkOut);
 router.post("/venues/heartbeat", userAuth, heartbeat);
 router.get("/venues/:venueId/people", userAuth, getVenuePeopleCount);
+router.post("/venues/detect", userAuth, autoDetectVenue);
 
 // ==================== MATCHING & SWIPING ====================
 router.get("/discover", userAuth, getVenueProfiles);
