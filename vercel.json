@@ -2,7 +2,8 @@
   "version": 2,
   "buildCommand": "cd Dating-For-impatient-Frontend/user-frontend && npm install && npm run build",
   "outputDirectory": "Dating-For-impatient-Frontend/user-frontend/build",
-  "installCommand": "npm install && cd Dating-For-impatient-Frontend/user-frontend && npm install",
+  "installCommand": "npm install",
+  "framework": null,
   "functions": {
     "api/index.js": {
       "memory": 1024,
@@ -11,6 +12,6 @@
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.js" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
