@@ -93,4 +93,69 @@ const getUserById = async function (req, res) {
 };
 
 
-module.exports={userRegister,getAllUsers,getUserById}
+//update user details
+const updateUser = async function (req, res) {
+  try {
+    let { userId } = req.params;
+
+    let user = await userModel.findOne({ _id: userId, role: "user" }).select("-password");
+    if (!user) return res.status(404).send({ status: false, message: "user not found" });
+
+
+    //return res.status(200).send({ status: true, message: "user details", data: user });
+
+      const allowedUpdates = [
+      "name",
+      "email",
+      "status",
+      "gender",
+      "age",
+      "bio"
+    ];
+
+    const updates = {};
+    for (let key of allowedUpdates) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+      const userUpdated = await userModel.findByIdAndUpdate(
+      userId,
+      updates,
+      { new: true }
+    ).select("-password");
+
+
+
+  } catch (err) {
+    return res.status(500).send({ status: false, message: err.message });
+  }
+};
+
+
+//update user details
+const deleteUser = async function (req, res) {
+  try {
+    let { userId } = req.params;
+
+    let user = await userModel.findOne({ _id: userId, role: "user" }).select("-password");
+    if (!user) return res.status(404).send({ status: false, message: "user not found" });
+
+
+  
+   
+    const userUpdated = await userModel.findByIdAndUpdate(
+     userId,{status:'banned'},
+      { new: true }
+    );
+   return res.send({status:true,message:'banned succesfully'})
+
+
+
+  } catch (err) {
+    return res.status(500).send({ status: false, message: err.message });
+  }
+};
+
+
+module.exports={userRegister,getAllUsers,getUserById,updateUser,deleteUser}
