@@ -125,7 +125,7 @@ const updateUser = async function (req, res) {
       { new: true }
     ).select("-password");
 
-
+    return res.status(200).send({ status: true, message: "user updated", data: userUpdated });
 
   } catch (err) {
     return res.status(500).send({ status: false, message: err.message });
