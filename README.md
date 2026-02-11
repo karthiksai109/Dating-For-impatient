@@ -1,141 +1,228 @@
-# Dating-For-impatient 
-# Dating App for Impatient People (MERN Stack)
+# VenueMatch - Dating App for Impatient People
 
-This is a full-stack dating application I am building as part of my software developer internship at sbs corp using the **MERN stack**.  
-The idea is simple: faster matching, at a single venue,less waiting,more privacy by not sharing any of the users personal details on the app.
+> **The world's first venue-locked dating app.** Match with people at the same place, chat only while you're both there, and protect your privacy like never before.
 
-This repo currently focuses heavily on **Admin authentication, admin dashboard, and system control features**, along with a working frontend for admins.
+## What Makes This App Revolutionary
 
-## Tech Stack Used
+| Feature | Tinder/Bumble | **VenueMatch** |
+|---------|--------------|----------------|
+| Discovery | Anywhere, random radius | **Only at your current venue** |
+| Matching | Based on distance | **Based on shared location + interests** |
+| Messaging | Anytime, anywhere | **Venue-locked: only while both at same place** |
+| Privacy | Email/phone visible | **Email & phone NEVER shown to users** |
+| Context Reset | Permanent swipe history | **Fresh start at every new venue** |
+| Interest Matching | Basic preferences | **Scored % match based on shared hobbies** |
+| Admin Control | Limited | **Full admin dashboard with user/venue/report management** |
 
-Frontend:
-- React.js
-- React Router
-- Axios
+## Core Innovation: Venue-Locked Everything
 
-Backend:
-- Node.js
-- Express.js
-- MongoDB (Mongoose)
-- JWT Authentication
-- bcryptjs
+1. **Check in** to a restaurant, cafe, bar, gym, or any venue
+2. **Discover** only people who are at that same venue right now
+3. **Swipe** with interest-based match scoring (% compatibility)
+4. **Match** and chat — but ONLY while both of you are at the venue
+5. **Leave** the venue → swipes reset, chats lock, fresh start at next place
 
+This creates **authentic, in-the-moment connections** instead of endless swiping from your couch.
 
+## Tech Stack
 
-## What I Built Today (Date: 26-01-2026)
+### Backend (Node.js + Express + MongoDB)
+- **Express.js** REST API with 30+ endpoints
+- **MongoDB** with Mongoose ODM (8 models)
+- **JWT** authentication for both users and admins
+- **bcryptjs** password hashing
+- **Role-based access control** (user vs admin middleware)
+- **TTL indexes** for ephemeral matches and messages
+- **2dsphere geolocation** indexes for venue proximity
+- **Venue presence tracking** with automatic expiry
 
-### Backend Work (Node + Express + MongoDB)
+### Frontend - User App (React.js)
+- **React 19** with React Router v7
+- **Context API** for global auth state
+- **Axios** with interceptors for token management
+- **Dark theme** with gradient accents
+- **Mobile-first responsive** design
+- **Swipe animations** for profile discovery
+- **Real-time chat** with 3-second polling
 
-Today I mainly worked on **admin architecture and security**, separating admins completely from normal users.
+### Frontend - Admin Dashboard (React.js)
+- **Admin authentication** with secret key registration
+- **Dashboard** with system statistics
+- **User management** (view, edit, suspend, ban)
+- **Venue management** (CRUD, toggle active/inactive)
+- **Report management** (view, review, close)
 
-#### Admin Authentication
-- Created **Admin Register API** protected using a secret key (`ADMIN_REGISTER_SECRET`)
-- Created **Admin Login API** with JWT token generation
-- Admins are stored using the same User model but differentiated using `role: "admin"`
+## Project Structure
 
-#### Admin Authorization
-- Implemented JWT based `auth` middleware
-- Implemented `adminOnly` middleware to restrict admin routes
-- Only admins can access:
-  - Admin profile (`/adminme`)
-  - Dashboard statistics
-  - User management APIs (in progress)
+```
+Dating-For-impatient/
+├── src/                          # Backend
+│   ├── Controllers/
+│   │   ├── adminController.js    # Admin auth & dashboard
+│   │   ├── authController.js     # User register/login/profile
+│   │   ├── checkinController.js  # Venue check-in/out/heartbeat
+│   │   ├── matchController.js    # Swipe/match/discover
+│   │   ├── messageController.js  # Venue-locked messaging
+│   │   ├── reportController.js   # User reporting
+│   │   ├── userController.js     # Admin user management
+│   │   └── venueController.js    # Admin venue management
+│   ├── Middleware/
+│   │   ├── auth.js               # Admin JWT middleware
+│   │   ├── adminmidlleware.js    # Admin role check
+│   │   └── userAuth.js           # User JWT middleware
+│   ├── Models/
+│   │   ├── adminModel.js         # Admin schema
+│   │   ├── userRegisterModel.js  # User schema (enhanced)
+│   │   ├── venueModel.js         # Venue schema (with geo)
+│   │   ├── matchModel.js         # Permanent match records
+│   │   ├── ephemeralMatch.js     # TTL venue-locked matches
+│   │   ├── ephemeralMessage.js   # TTL venue-locked messages
+│   │   ├── venuPresence.js       # User presence at venue
+│   │   └── reportModel.js        # User reports
+│   ├── Routes/
+│   │   └── route.js              # All API routes
+│   └── index.js                  # Express server entry
+├── Dating-For-impatient-Frontend/
+│   ├── admin-frontend/           # Admin React app (port 3000)
+│   └── user-frontend/            # User React app (port 3001)
+│       └── src/
+│           ├── context/AuthContext.js
+│           ├── components/
+│           │   ├── Navbar.js
+│           │   └── ProtectedRoute.js
+│           └── pages/
+│               ├── Login.js
+│               ├── Register.js
+│               ├── Venues.js
+│               ├── Discover.js
+│               ├── Matches.js
+│               ├── Chats.js
+│               └── Profile.js
+├── .env                          # Environment variables
+├── .gitignore
+└── README.md
+```
 
-#### Admin Dashboard APIs
-Built APIs that return system-level stats for the dashboard:
-- Total users
-- Active users
-- Suspended users
-- Banned users
-- Admin count
-- Venue and report placeholders (to be expanded)
+## API Endpoints (30+)
 
-All dashboard APIs are **protected** using:
-- JWT authentication
-- Role-based authorization
+### User Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/userregister` | Register new user |
+| POST | `/api/userlogin` | Login user |
+| GET | `/api/me` | Get my profile |
+| PATCH | `/api/me` | Update my profile |
 
-#### Database Models
-- User model supports both `user` and `admin`
-- Admin does NOT require bio, hobbies, preferences, or photos
-- Clean role separation using `role` field
+### Venue Check-in
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/venues/nearby` | Get nearby venues |
+| POST | `/api/venues/checkin` | Check in to venue |
+| POST | `/api/venues/checkout` | Check out (resets swipes) |
+| POST | `/api/venues/heartbeat` | Keep presence alive |
+| GET | `/api/venues/:id/people` | Get venue people count |
+
+### Matching & Swiping
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/discover` | Get venue profiles (sorted by interest match %) |
+| POST | `/api/swipe/right` | Like a profile |
+| POST | `/api/swipe/left` | Pass on a profile |
+| GET | `/api/matches` | Get venue matches |
+| GET | `/api/matches/all` | Get all matches |
+
+### Messaging (Venue-Locked)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/chats` | Get chat list |
+| POST | `/api/messages` | Send message (venue-locked) |
+| GET | `/api/messages/:matchId` | Get messages (venue-locked) |
+
+### Safety
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/block` | Block a user |
+| POST | `/api/unblock` | Unblock a user |
+| POST | `/api/report` | Report a user |
+
+### Admin
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/adminregister` | Register admin (secret key) |
+| POST | `/api/adminlogin` | Admin login |
+| GET | `/api/adminme` | Admin profile |
+| GET | `/api/dashboard` | Dashboard stats |
+| GET | `/api/admin/users` | All users |
+| PATCH | `/api/admin/users/:id` | Update user |
+| DELETE | `/api/admin/users/:id` | Ban user |
+| CRUD | `/api/venues/*` | Venue management |
+| GET/PATCH | `/api/admin/reports/*` | Report management |
+
+## Setup & Run
+
+### Prerequisites
+- Node.js 18+
+- MongoDB (local or Atlas)
+
+### 1. Backend
+```bash
+cd Dating-For-impatient
+npm install
+```
+
+Create `.env`:
+```
+MONGO_URI=mongodb+srv://your-connection-string
+JWT_SECRET=your-jwt-secret-key
+ADMIN_REGISTER_SECRET=your-admin-secret
+PORT=5000
+```
+
+```bash
+node src/index.js
+```
+
+### 2. Admin Frontend
+```bash
+cd Dating-For-impatient-Frontend/admin-frontend
+npm install
+npm start    # Runs on port 3000
+```
+
+### 3. User Frontend
+```bash
+cd Dating-For-impatient-Frontend/user-frontend
+npm install
+npm start    # Runs on port 3001
+```
+
+## Why This Is The Best Dating App
+
+1. **Privacy First**: Email and phone are NEVER exposed to other users. Only admins can see full details.
+2. **Venue-Locked**: No more catfishing or ghosting — you're both physically at the same place.
+3. **Fresh Starts**: Swipe history resets when you leave a venue. No permanent rejections.
+4. **Interest Matching**: Profiles are sorted by compatibility score based on shared hobbies/interests.
+5. **Ephemeral Messaging**: Messages expire with TTL — conversations are in-the-moment.
+6. **Admin Control**: Full dashboard with user management, venue control, and report handling.
+7. **Safety**: Block, report, and admin moderation built in from day one.
+8. **Real Context**: You know exactly where someone is — at the same restaurant, cafe, or event as you.
+
+## Development Timeline
+
+- **Phase 1**: Admin system (auth, dashboard, user management) ✅
+- **Phase 2**: Venue management (CRUD, geolocation, presence) ✅
+- **Phase 3**: User auth (register, login, profile, privacy) ✅
+- **Phase 4**: Venue check-in/out with presence tracking ✅
+- **Phase 5**: Swipe system with interest-based matching ✅
+- **Phase 6**: Venue-locked messaging system ✅
+- **Phase 7**: User frontend (all pages, dark theme UI) ✅
+- **Phase 8**: Safety features (block, report, admin moderation) ✅
+- **Phase 9**: Documentation and deployment ✅
+
+## License
+
+MIT
 
 ---
 
-### Frontend Work (React.js)
-
-#### Admin Authentication UI
-- Built **Admin Register page**
-- Built **Admin Login page**
-- Secure navigation using protected routes
-- Token stored locally and attached to API requests automatically
-
-#### Admin Dashboard UI
-- Created a clean admin dashboard page
-- Shows:
-  - Logged-in admin name & email
-  - System statistics cards
-- Added logout functionality
-- /*need to update by adding phone number of users in our dashboard*/
-- Dashboard loads data from backend using parallel API calls
-
-#### Admin Route Protection
-- Created `AdminRoute` wrapper
-- Prevents access if admin is not logged in
-- Automatically redirects to admin login
-
-#### Admin User Management (In Progress)
-- Created `/admin/users` page
-- Table structure ready for:
-  - Name
-  - Email
-  - Status
-  - Role
-- Currently wiring backend APIs to populate data
-
----
-
-## Current Working Features
-
-- Admin register with secret key
-- Admin login with JWT
-- Secure admin dashboard
-- Role-based backend authorization
-- Protected admin routes on frontend
-- Centralized Axios API handler with token injection
-
----
-
-## Issues Solved Today
-
-- Fixed route mismatches between frontend and backend
-- Fixed JWT auth flow and role checking
-- Solved React import/export errors
-- Debugged 404 API issues
-- Cleaned admin logic so admin is NOT treated like a normal user
-
----
-
-## What I’m Working On Next
-
-Backend:
-- Admin: suspend / ban users
-- Match model (user1 ↔ user2)
-- Match statistics per user
-- trying to reduce response time by using redis cache
-
-Frontend:
-- Admin users list page (click → user details)
-- Show matched count per user
-- Show matched people names
-- Admin controls (suspend / ban buttons)
-- Improve dashboard UI
-
----
-
-## Project Status
-
-🟢 Backend: Core admin system complete  
-🟡 Frontend: Admin dashboard mostly complete  
-🔵 User features & matching logic: in progress  
-
-This project is actively being developed and expanded step-by-step.
+Built with passion by Karthik Sai | SBS Corp Internship Project
